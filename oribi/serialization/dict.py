@@ -69,7 +69,7 @@ def _normalize(
                 if evidence_details and not include_values and isinstance(item, (tuple, list)) and any(isinstance(v, str) for v in item):
                     continue
                 normalized_key = str(key)
-                if normalized_key in result:
+                if include_values and normalized_key in result:
                     raise ValueError(f"Cannot export duplicate stringified mapping key at '{_path}'.")
                 result[normalized_key] = _normalize(
                     item, include_values, evidence_details=evidence_details,
