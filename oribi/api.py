@@ -145,8 +145,8 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
         exact_distinct={name: observations[name].distinct_count_exact for name in names},
     )
     cardinalities = {
-        name: profile_cardinality(observations[name].series, nrows)
-        for name in names
+        name: profile_cardinality(obs.series, nrows, obs.fallback_counts)
+        for name, obs in observations.items()
     }
     relationships = detect_relationships(
         df,

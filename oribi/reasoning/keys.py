@@ -72,6 +72,7 @@ def detect_candidate_keys(
         (
             name for name in names
             if name not in single_columns
+            and (exact_distinct is None or exact_distinct.get(name, True))
             and _is_key_component(roles.get(name))
             and stats[name].distinct_count > 1
         ),

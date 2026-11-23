@@ -235,3 +235,18 @@ def test_repeated_and_missing_timestamps_do_not_count_as_individually_unique():
         grain = inspect(frame[["opened_at", other]]).grain
         assert grain.status == "estimated"
         assert all(evidence.code != "ambiguous_temporal_grain" for evidence in grain.evidence)
+
+def test_unhashable_column_does_not_displace_verified_composite_key():
+    frame = pd.DataFrame({
+        "order_id": ["a", "a", "b", "b", "c", "c"],
+        "product_id": ["x", "y", "z", "x", "y", "z"],
+        "metadata": pd.Series([[1], "[1]", [2], "[2]", [1], "[1]"], dtype=object),
+    })
+
+    context = inspect(frame, options=ProfileOptions(max_key_columns=2))
+
+    assert any(
+        key.columns == ("order_id", "product_id") and key.verified_unique
+        for key in context.candidate_keys
+    )
+    assert context.grain.columns == ("order_id", "product_id")

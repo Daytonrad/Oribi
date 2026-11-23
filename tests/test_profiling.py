@@ -525,3 +525,24 @@ def test_sparse_and_dense_numeric_columns_match_dense_statistics(values):
     assert actual.logical_type == "numeric"
     assert actual.statistics == expected.statistics
     assert actual.semantic == expected.semantic
+
+@pytest.mark.parametrize("top_k", [0, 4])
+def test_unhashable_object_frequency_scan_is_shared(monkeypatch, top_k):
+    value_counts = pd.Series.value_counts
+    scans = 0
+
+    def count_list_scans(series, *args, **kwargs):
+        nonlocal scans
+        if any(isinstance(value, list) for value in series):
+            scans += 1
+        return value_counts(series, *args, **kwargs)
+
+    monkeypatch.setattr(pd.Series, "value_counts", count_list_scans)
+    values = pd.Series([[1], "[1]", [2], "[2]"], dtype=object)
+    column = inspect(
+        pd.DataFrame({"metadata": values}), options=ProfileOptions(top_k=top_k),
+    ).get_column("metadata")
+
+    assert column.statistics.distinct_count == column.cardinality.unique_count == 4
+    assert len(column.statistics.top_values) == top_k
+    assert scans == 1
