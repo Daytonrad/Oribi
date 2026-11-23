@@ -222,6 +222,39 @@ def test_high_cardinality_categorical_column_has_warning():
     assert any(w.code == "high_cardinality_category" for w in group.warnings)
 
 
+@pytest.mark.parametrize("top_k", [0, 4])
+def test_unhashable_object_distinct_count_matches_cardinality(top_k):
+    values = pd.Series([[1], "[1]", [2], "[2]"], dtype=object)
+    context = inspect(pd.DataFrame({"metadata": values}), options=ProfileOptions(top_k=top_k))
+    column = context.get_column("metadata")
+
+    assert column.statistics.distinct_count == column.cardinality.unique_count == 4
+    if top_k:
+        samples = column.statistics.top_values
+        assert len(samples) == 4
+        assert all(frequency == 1 for _, frequency in samples)
+        assert all(any(type(sample) is type(value) and sample == value for sample, _ in samples)
+                   for value in values)
+    else:
+        assert column.statistics.top_values == ()
+
+
+def test_unhashable_object_counts_fall_back_when_pandas_value_counts_fails(monkeypatch):
+    value_counts = pd.Series.value_counts
+
+    def reject_lists(series, *args, **kwargs):
+        if any(isinstance(value, list) for value in series):
+            raise TypeError("cannot count list values")
+        return value_counts(series, *args, **kwargs)
+
+    monkeypatch.setattr(pd.Series, "value_counts", reject_lists)
+    values = pd.Series([[1], "[1]", [2], "[2]"], dtype=object)
+    column = inspect(pd.DataFrame({"metadata": values})).get_column("metadata")
+
+    assert column.statistics.distinct_count == column.cardinality.unique_count == 2
+    assert column.statistics.top_values == ()
+
+
 def test_unused_categories_are_excluded_from_top_values():
     frame = pd.DataFrame({"category": pd.Series(["a"], dtype=pd.CategoricalDtype(categories=["a", "b", "c"]))})
     column = next(c for c in inspect(frame).columns if c.name == "category")

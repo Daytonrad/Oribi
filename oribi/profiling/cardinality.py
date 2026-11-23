@@ -38,7 +38,7 @@ def profile_cardinality(series: pd.Series, row_count: int) -> CardinalityContext
     try:
         counts = observed.value_counts(dropna=True, sort=False)
     except (TypeError, ValueError):
-        # Match AnalysisSession's fallback for unhashable object values.
+        # Match AnalysisSession when pandas cannot count the original values.
         counts = observed.astype(str).value_counts(dropna=True, sort=False)
         exact_values = False
     counts = counts[counts > 0]

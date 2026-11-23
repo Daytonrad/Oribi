@@ -50,8 +50,15 @@ class AnalysisSession:
         try:
             distinct = int(series.nunique(dropna=True))
         except (TypeError, ValueError):
-            distinct = int(series.dropna().astype(str).nunique())
+            # Keep these values ineligible for exact key verification.
             distinct_count_exact = False
+            observed = series.dropna()
+            try:
+                counts = observed.value_counts(dropna=True, sort=False)
+            except (TypeError, ValueError):
+                distinct = int(observed.astype(str).nunique())
+            else:
+                distinct = int((counts > 0).sum())
         date_evidence = None
         if pd.api.types.is_bool_dtype(series.dtype):
             logical = "boolean"
