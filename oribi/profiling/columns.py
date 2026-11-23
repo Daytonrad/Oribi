@@ -16,8 +16,13 @@ from .observations import ColumnObservation
 
 
 def _snapshot_top_value(value: Any, copies: dict[int, Any]) -> Any:
-    """Copy built-in list and dict values without copying arbitrary objects."""
+    """Copy built-in list, dict and tuple values without copying arbitrary objects."""
     kind = type(value)
+    if kind is tuple:
+        # A tuple is immutable but can hold a mutable list or dict; rebuild it
+        # with each item detached so a later edit to the source cannot reach
+        # into an exported snapshot (issue #47 covered bare list and dict cells).
+        return tuple(_snapshot_top_value(item, copies) for item in value)
     if kind is not list and kind is not dict:
         return value
 
