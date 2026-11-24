@@ -138,6 +138,7 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
             nrows,
             has_fractional_values=has_fractional_values,
             is_bool_dtype=pd.api.types.is_bool_dtype(observations[name].series.dtype),
+            is_decimal=observations[name].is_decimal,
             is_float=pd.api.types.is_float_dtype(observations[name].series.dtype),
             date_evidence=observations[name].date_evidence,
         )

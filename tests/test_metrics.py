@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from decimal import Decimal
 
 import pandas as pd
 import pytest
@@ -274,6 +275,16 @@ def _eval_sql(frame: pd.DataFrame, sql: str) -> float:
         row = conn.execute(query).fetchone()
         assert row is not None and row[0] is not None
         return float(row[0])
+
+
+def test_decimal_measure_ratio_avoids_integer_division():
+    frame = pd.DataFrame({
+        "order_id": [1, 2],
+        "revenue": pd.Series([Decimal("1.00"), Decimal("2.00")], dtype=object),
+    })
+    metric = _metric(inspect(frame), "average_order_value")
+    # SQLite can store whole values as integers in a NUMERIC column.
+    assert _eval_sql(frame.assign(revenue=[1, 2]), metric.sql) == 1.5
 
 
 @pytest.mark.parametrize(("revenue", "profit"), [(100.0, None), (None, 40.0)])
