@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from oribi import MetricDefinition, RelationshipContext, inspect
+from oribi import MetricDefinition, ProfileOptions, RelationshipContext, inspect
 from oribi.reasoning.metrics import _sql_col, infer_metrics
 
 
@@ -312,6 +312,25 @@ def test_repeated_order_totals_across_line_items_deduplicate_aov_total_and_ratio
     opc = _metric(context, "orders_per_customer")
     assert opc.sql == "1.0 * COUNT(DISTINCT order_id) / NULLIF(COUNT(DISTINCT customer_id), 0)"
     assert _eval_sql(frame, opc.sql) == pytest.approx(1.5)
+
+
+@pytest.mark.parametrize(
+    "options", [ProfileOptions(max_relationship_columns=1), None], ids=["explicit", "default"],
+)
+def test_unhashable_metadata_does_not_displace_metric_grain(options):
+    # An incomplete pair keeps the exact mapping scan from supplying the same grain fact.
+    rows = pd.DataFrame({
+        "entity_id": ["e1", "e1", "e2", "e2", "e3", "e3", "e3"],
+        "amount": [10.0, 10.0, 20.0, 20.0, 30.0, 30.0, None],
+    })
+    metadata = pd.Series([[1], "[1]", [2], "[2]", [3], "[3]", "extra"], dtype=object)
+    limit = (options or ProfileOptions()).max_relationship_columns
+    metadata_columns = {f"a_metadata_{i}": metadata for i in range(limit)}
+    context = inspect(rows.assign(**metadata_columns), options=options)
+
+    total = _metric(context, "total_amount")
+    assert _eval_sql(rows, total.sql) == pytest.approx(60.0), total.sql
+    assert all(not metadata_columns.keys() & metric.columns for metric in context.metrics)
 
 
 def test_repeated_integer_order_totals_and_coarser_customer_grain_measures():
