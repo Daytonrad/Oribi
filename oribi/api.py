@@ -101,6 +101,8 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
     The returned context contains no reference to ``df``. Sampled built-in lists
     and dictionaries are copied, including those nested within them. Temporal
     role inference for string or object columns preserves their stored values.
+    Fallback distinct counts describe a column without qualifying it for key
+    searches, cross-column relationship scans, or SQL metrics.
     """
     if options is None:
         options = ProfileOptions()
@@ -146,18 +148,19 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
         name: semantics[name].role for name in names
         if observations[name].date_evidence is None
     }
+    exact_distinct = {name: obs.distinct_count_exact for name, obs in observations.items()}
     key_candidates, grain = detect_keys(
         df, names, stats, structural_roles,
         max_columns=options.max_key_columns, max_exact_rows=options.max_exact_rows,
-        exact_distinct={name: observations[name].distinct_count_exact for name in names},
+        exact_distinct=exact_distinct,
     )
     cardinalities = {
-        name: profile_cardinality(observations[name].series, nrows)
-        for name in names
+        name: profile_cardinality(obs.series, nrows, obs.fallback_counts)
+        for name, obs in observations.items()
     }
     relationships = detect_relationships(
         df,
-        structural_roles,
+        {name: role for name, role in structural_roles.items() if exact_distinct[name]},
         max_rows=options.max_exact_rows,
         candidate_keys=key_candidates,
         grain=grain,
@@ -209,15 +212,16 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
             "duplicate_check_unavailable", "low", "Duplicate-row check unavailable",
             "Pandas could not compare rows with the available cell values.",
         ))
+    metric_columns = [column for column in columns if exact_distinct[column.name]]
     entity_constant_measures, entity_determinants, multi_parent_pairs = detect_metric_grain_facts(
         df,
-        columns,
+        metric_columns,
         relationships,
         max_rows=options.max_exact_rows,
         max_columns=options.max_relationship_columns,
     )
     metrics = infer_metrics(
-        columns,
+        metric_columns,
         grain=grain,
         relationships=relationships,
         row_count=nrows,

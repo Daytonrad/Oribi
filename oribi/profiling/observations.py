@@ -25,6 +25,7 @@ class ColumnObservation:
     stats: dict[str, Any] = field(default_factory=dict)
     date_evidence: Evidence | None = None
     distinct_count_exact: bool = True
+    fallback_counts: tuple[pd.Series, bool] | None = None
 
 
 class AnalysisSession:
@@ -47,11 +48,23 @@ class AnalysisSession:
             raise InvalidInputError(f"Complex-valued column {name!r} is not supported")
         missing = int(series.isna().sum())
         distinct_count_exact = True
+        fallback_counts = None
         try:
             distinct = int(series.nunique(dropna=True))
         except (TypeError, ValueError):
-            distinct = int(series.dropna().astype(str).nunique())
+            # Keep these values ineligible for exact key verification.
             distinct_count_exact = False
+            observed = series.dropna()
+            try:
+                counts = observed.value_counts(dropna=True, sort=False)
+            except (TypeError, ValueError):
+                counts = observed.astype(str).value_counts(dropna=True, sort=False)
+                original_values = False
+            else:
+                original_values = True
+            counts = counts[counts > 0]
+            fallback_counts = (counts, original_values)
+            distinct = len(counts)
         date_evidence = None
         if pd.api.types.is_bool_dtype(series.dtype):
             logical = "boolean"
@@ -98,6 +111,7 @@ class AnalysisSession:
             logical,
             date_evidence=date_evidence,
             distinct_count_exact=distinct_count_exact,
+            fallback_counts=fallback_counts,
         )
         self.observations[name] = obs
         return obs

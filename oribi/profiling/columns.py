@@ -180,11 +180,15 @@ def profile_column(
         values["maximum"] = non_null.max()
         values["date_range"] = f"{values['minimum']} to {values['maximum']}"
     if top_k > 0 and len(non_null) and (obs.logical_type in {"text", "categorical", "boolean", "unknown", "duration"} or obs.distinct_count <= top_k * 4):
-        try:
-            counts = non_null.value_counts(sort=False, dropna=True)
-        except (TypeError, ValueError):
-            pass
+        if obs.fallback_counts is not None:
+            fallback, original_values = obs.fallback_counts
+            counts = fallback if original_values else None
         else:
+            try:
+                counts = non_null.value_counts(sort=False, dropna=True)
+            except (TypeError, ValueError):
+                counts = None
+        if counts is not None:
             ranked = _top_values(counts, top_k)
             values["top_values"] = tuple((_snapshot_top_value(k, {}), count) for k, count in ranked)
             values["top_frequencies"] = tuple(count for _, count in ranked)
