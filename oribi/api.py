@@ -214,7 +214,12 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
             "Pandas could not compare rows with the available cell values.",
         ))
     metric_columns = [column for column in columns if exact_distinct[column.name]]
-    entity_constant_measures, entity_determinants, multi_parent_pairs = detect_metric_grain_facts(
+    (
+        entity_constant_measures,
+        entity_determinants,
+        multi_parent_pairs,
+        partially_covered_measures,
+    ) = detect_metric_grain_facts(
         df,
         metric_columns,
         relationships,
@@ -230,6 +235,7 @@ def inspect(df: pd.DataFrame, *, options: ProfileOptions | None = None) -> Datas
         entity_constant_measures=entity_constant_measures,
         entity_determinants=entity_determinants,
         multi_parent_pairs=multi_parent_pairs,
+        partially_covered_measures=partially_covered_measures,
     )
     return DatasetContext(
         profile=DatasetProfile(
