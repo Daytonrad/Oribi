@@ -75,6 +75,7 @@ def detect_candidate_keys(
             if name not in verified_single_columns
             and (exact_distinct is None or exact_distinct.get(name, True))
             and _is_key_component(roles.get(name))
+            and getattr(frame[name].dtype, "kind", None) != "m"
             and stats[name].distinct_count > 1
         ),
         key=lambda name: (-stats[name].distinct_rate, stats[name].missing_rate, name),

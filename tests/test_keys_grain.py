@@ -62,6 +62,37 @@ def test_composite_candidate_is_detected_without_single_key():
     assert context.grain.columns == ("order_id", "product_id")
 
 
+def test_repeated_elapsed_durations_cannot_form_a_composite_key_with_a_flag():
+    frame = pd.DataFrame({
+        "elapsed": pd.to_timedelta([0, 0, 1, 1], unit="s"),
+        "flag": [True, False, True, False],
+    })
+    context = inspect(frame)
+
+    assert context.candidate_keys == ()
+    assert context.grain.status == "undetermined"
+    assert context.grain.columns == ()
+    statistics = context.get_column("elapsed").statistics
+    assert statistics.distinct_count == 2
+    assert statistics.missing_count == 0
+    assert dict(statistics.top_values) == {pd.Timedelta(0): 2, pd.Timedelta(seconds=1): 2}
+
+
+def test_elapsed_durations_do_not_displace_a_datetime_composite_key():
+    frame = pd.DataFrame({
+        "elapsed": pd.to_timedelta(range(4), unit="s"),
+        "device_id": ["A", "B", "A", "B"],
+        "measured_at": pd.date_range("2025-01-01", periods=2, tz="UTC").repeat(2),
+    })
+    context = inspect(frame, options=ProfileOptions(max_key_columns=2))
+
+    assert [(key.columns, key.verified_unique) for key in context.candidate_keys] == [
+        (("device_id", "measured_at"), True),
+    ]
+    assert context.grain.status == "estimated"
+    assert context.grain.columns == ("device_id", "measured_at")
+
+
 @pytest.fixture
 def near_unique_order_frame():
     return pd.DataFrame({
